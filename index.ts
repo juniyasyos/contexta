@@ -19,7 +19,7 @@ async function main() {
   const rawArgs = process.argv.slice(2);
   
   if (rawArgs.length === 0) {
-    console.log("Usage: doc-brain <command> [arg] [--intent ...] ...");
+    console.log("Usage: contexta <command> [arg] [--intent ...] ...");
     process.exit(1);
   }
 

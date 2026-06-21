@@ -1,6 +1,6 @@
-# Project Intelligence RAG (Doc-Brain Caveman Librarian)
+# Project Intelligence RAG (Contexta Caveman Librarian)
 
-**Project Intelligence RAG (Doc-Brain)** adalah sebuah *CLI tool* yang dirancang khusus sebagai **"Pustakawan"** untuk memetakan arsitektur proyek (termasuk Laravel) secara lokal. Tool ini mengekstrak entitas dan relasi dari *source code* dan dokumentasi ke dalam *Knowledge Graph* berformat JSON, menghemat **hingga 99%** konsumsi *context window* LLM.
+**Project Intelligence RAG (Contexta)** adalah sebuah *CLI tool* yang dirancang khusus sebagai **"Pustakawan"** untuk memetakan arsitektur proyek (termasuk Laravel) secara lokal. Tool ini mengekstrak entitas dan relasi dari *source code* dan dokumentasi ke dalam *Knowledge Graph* berformat JSON, menghemat **hingga 99%** konsumsi *context window* LLM.
 
 ## 🌟 Desain Arsitektur & Filosofi (Mode Pembacaan Knowledge)
 
@@ -17,7 +17,7 @@ Tool ini beroperasi dengan prinsip **"Caveman Librarian"** — murni sebagai mes
 
 Dibandingkan dengan pencarian konvensional (Grep) yang memuat seluruh *source code* ke dalam *context window* LLM, tool ini secara ekstrem meringkas muatan dengan berfokus menyuplai **metadata arsitektur dan relasi**:
 
-| Metrik | Pencarian Konvensional (Grep) | Pendekatan Pustakawan (Doc-Brain) |
+| Metrik | Pencarian Konvensional (Grep) | Pendekatan Pustakawan (Contexta) |
 |--------|------------------|-------------------|
 | **Payload ke LLM** | Menyuapkan seluruh isi *file* kode mentah. | Menyuapkan ringkasan relasi (node & *edges*). |
 | **Kebutuhan Token** | Sangat besar (bisa > 20.000 token). | Sangat kecil (dibatasi ketat ~150 hingga 500 token). |
@@ -43,7 +43,7 @@ bun run index.ts scan
 ## 📁 Struktur Direktori
 
 ```text
-doc-brain/
+Contexta/
 ├── src/
 │   ├── index.ts        # Entry point utama aplikasi
 │   ├── scanner.ts      # [BARU] Mesin pemindai Regex arsitektur Laravel (Anti-Fragile Scanner)
@@ -109,7 +109,7 @@ Output *cache* pengetahuan disimpan di direktori output (default: `docs/ai-agent
 - **Nodes (`graph.json`):** Entitas seperti `Table`, `Model`, `Controller`, `Service`, `Route`, `Policy`, `FilamentResource`.
 - **Edges (`graph.json`):** Relasi seperti `has_column`, `uses_model`, `depends_on`, `handled_by`, `creates_table`, `authorizes`, `seeds`.
 - **Chunks (`chunks.json`):** Pecahan dokumentasi *markdown* yang telah di-index.
-- **`bun.lock`:** Digunakan secara internal oleh Bun untuk mengunci dependensi engine Doc-Brain agar konsisten (*Dependency Lock*).
+- **`bun.lock`:** Digunakan secara internal oleh Bun untuk mengunci dependensi engine Contexta agar konsisten (*Dependency Lock*).
 
 ---
 *Dikembangkan secara khusus untuk menganalisis arsitektur proyek kompleks (seperti monolit Laravel) dengan prinsip Caveman Librarian.*

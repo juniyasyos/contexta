@@ -1,11 +1,11 @@
 {
-  "name": "doc-brain",
+  "name": "@juniyasyos/contexta",
   "version": "1.0.0",
   "module": "index.ts",
   "type": "module",
   "private": false,
   "bin": {
-    "doc-brain": "./index.ts"
+    "contexta": "./index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
