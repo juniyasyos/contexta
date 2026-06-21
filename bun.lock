@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "doc-brain",
+      "name": "contexta",
       "dependencies": {
         "dotenv": "^17.4.2",
         "js-yaml": "^5.0.0",
