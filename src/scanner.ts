@@ -114,6 +114,9 @@ function processRules(rules: any[], content: string, fileId: string, relPath: st
     const matches: RegExpExecArray[] = [];
     while ((match = regex.exec(content)) !== null) {
       matches.push(match);
+      if (match[0].length === 0) {
+        regex.lastIndex++;
+      }
     }
 
     const limitedMatches = limit > 0 ? matches.slice(0, limit) : matches;
