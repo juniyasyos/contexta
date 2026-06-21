@@ -1,0 +1,6 @@
+docs_dir: docs
+input_dir: docs/ai-agent/rag/input
+output_dir: docs/ai-agent/rag/output
+graph_file: docs/ai-agent/rag/output/graph.json
+chunks_file: docs/ai-agent/rag/output/chunks.json
+metadata_file: docs/ai-agent/rag/output/metadata.json

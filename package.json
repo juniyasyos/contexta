@@ -1,0 +1,21 @@
+{
+  "name": "doc-brain",
+  "module": "index.ts",
+  "type": "module",
+  "private": false,
+  "bin": {
+    "doc-brain": "./index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^26.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "js-yaml": "^5.0.0"
+  }
+}

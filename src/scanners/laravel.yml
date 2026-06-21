@@ -1,0 +1,1301 @@
+# =============================================================================
+# Laravel Scanner Configuration — Comprehensive
+# =============================================================================
+# Scanner ini mengekstrak entities (nodes) dan relations (edges) dari seluruh
+# domain project Laravel ke dalam knowledge graph.
+#
+# Catatan Teknis:
+# - sub_rules menerima FULL FILE CONTENT (bukan hanya matched block)
+# - parent_match hanya dipakai untuk template vars: {parent_1}, {parent_1_lower}
+# - primary: true pada metadata = entity ini definisi utama (class declaration)
+# - Pattern dijalankan dengan re.MULTILINE flag
+# =============================================================================
+
+name: laravel
+
+domains:
+
+  # ===========================================================================
+  # DATABASE — Migrations
+  # ===========================================================================
+  database:
+    paths: ["database/migrations"]
+    rules:
+      # --- Schema::create (buat tabel baru) ---
+      - pattern: "Schema::create\\('([^']+)'"
+        entities:
+          - id: "table-{1}"
+            type: "Table"
+            label: "{1}"
+            domain: "{domain}"
+          - id: "{file_id}"
+            type: "Migration"
+            label: "{rel_path}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        relations:
+          - from: "{file_id}"
+            to: "table-{1}"
+            type: "creates_table"
+        sub_rules:
+          - pattern: "\\$table->([a-zA-Z0-9_]+)\\('([^']+)'\\)"
+            entities:
+              - id: "col-{parent_1}-{2}"
+                type: "Column"
+                label: "{2}"
+                domain: "{domain}"
+                metadata:
+                  col_type: "{1}"
+            relations:
+              - from: "table-{parent_1}"
+                to: "col-{parent_1}-{2}"
+                type: "has_column"
+
+      # --- Schema::table (alter tabel) ---
+      - pattern: "Schema::table\\('([^']+)'"
+        entities:
+          - id: "table-{1}"
+            type: "Table"
+            label: "{1}"
+            domain: "{domain}"
+        relations:
+          - from: "{file_id}"
+            to: "table-{1}"
+            type: "alters_table"
+        sub_rules:
+          - pattern: "\\$table->([a-zA-Z0-9_]+)\\('([^']+)'\\)"
+            entities:
+              - id: "col-{parent_1}-{2}"
+                type: "Column"
+                label: "{2}"
+                domain: "{domain}"
+                metadata:
+                  col_type: "{1}"
+            relations:
+              - from: "table-{parent_1}"
+                to: "col-{parent_1}-{2}"
+                type: "has_column"
+
+      # --- Schema::dropIfExists ---
+      - pattern: "Schema::dropIfExists\\('([^']+)'"
+        relations:
+          - from: "{file_id}"
+            to: "table-{1}"
+            type: "drops_table"
+
+      # --- Foreign key references ---
+      - pattern: "->references\\('([^']+)'\\)->on\\('([^']+)'\\)"
+        relations:
+          - from: "{file_id}"
+            to: "table-{2}"
+            type: "references_table"
+
+      # --- foreignId / foreignIdFor ---
+      - pattern: "\\$table->foreignIdFor\\(([A-Za-z0-9_]+)::class"
+        entities:
+          - id: "model-{1_lower}"
+            type: "Model"
+            label: "{1}"
+            domain: "models"
+        relations:
+          - from: "{file_id}"
+            to: "model-{1_lower}"
+            type: "references_model"
+
+  # ===========================================================================
+  # ROUTES — Web & API Routes
+  # ===========================================================================
+  routes:
+    paths: ["routes"]
+    rules:
+      # --- Standard route: Route::get/post/put/patch/delete ---
+      - pattern: "Route::(get|post|put|patch|delete)\\('([^']+)'\\s*,\\s*\\[([^:]+)::class,\\s*'([^']+)'\\]"
+        entities:
+          - id: "route-{1_lower}-{2_slug}"
+            type: "Route"
+            label: "{1_upper} {2}"
+            domain: "{domain}"
+          - id: "controller-{3_lower}"
+            type: "Controller"
+            label: "{3}"
+            domain: "controllers"
+        relations:
+          - from: "route-{1_lower}-{2_slug}"
+            to: "controller-{3_lower}"
+            type: "handled_by"
+
+      # --- Route::resource ---
+      - pattern: "Route::resource\\('([^']+)'\\s*,\\s*([^:]+)::class"
+        entities:
+          - id: "route-resource-{1_slug}"
+            type: "Route"
+            label: "RESOURCE {1}"
+            domain: "{domain}"
+          - id: "controller-{2_lower}"
+            type: "Controller"
+            label: "{2}"
+            domain: "controllers"
+        relations:
+          - from: "route-resource-{1_slug}"
+            to: "controller-{2_lower}"
+            type: "handled_by"
+
+      # --- Route::apiResource ---
+      - pattern: "Route::apiResource\\('([^']+)'\\s*,\\s*([^:]+)::class"
+        entities:
+          - id: "route-apiresource-{1_slug}"
+            type: "Route"
+            label: "API_RESOURCE {1}"
+            domain: "{domain}"
+          - id: "controller-{2_lower}"
+            type: "Controller"
+            label: "{2}"
+            domain: "controllers"
+        relations:
+          - from: "route-apiresource-{1_slug}"
+            to: "controller-{2_lower}"
+            type: "handled_by"
+
+      # --- Middleware pada route ---
+      - pattern: "->middleware\\(\\[?'([^']+)'"
+        entities:
+          - id: "middleware-{1_slug}"
+            type: "Middleware"
+            label: "{1}"
+            domain: "middleware"
+
+  # ===========================================================================
+  # CONTROLLERS
+  # ===========================================================================
+  controllers:
+    paths: ["app/Http/Controllers", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Controller)"
+        entities:
+          - id: "controller-{1_lower}"
+            type: "Controller"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          # Deteksi model yang digunakan (use statement)
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "controller-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+          # Deteksi service yang di-inject
+          - pattern: "use\\s+App\\\\Services\\\\(?:[A-Za-z0-9_]+\\\\)*([A-Za-z0-9_]+Service)"
+            entities:
+              - id: "service-{1_lower}"
+                type: "Service"
+                label: "{1}"
+                domain: "services"
+            relations:
+              - from: "controller-{parent_1_lower}"
+                to: "service-{1_lower}"
+                type: "uses_service"
+          # Deteksi FormRequest yang digunakan
+          - pattern: "use\\s+App\\\\Http\\\\Requests\\\\(?:[A-Za-z0-9_]+\\\\)*([A-Za-z0-9_]+Request)"
+            entities:
+              - id: "request-{1_lower}"
+                type: "FormRequest"
+                label: "{1}"
+                domain: "requests"
+            relations:
+              - from: "controller-{parent_1_lower}"
+                to: "request-{1_lower}"
+                type: "validates_with"
+
+  # ===========================================================================
+  # SERVICES
+  # ===========================================================================
+  services:
+    paths: ["app/Services", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Service)"
+        entities:
+          - id: "service-{1_lower}"
+            type: "Service"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          # Deteksi model yang digunakan
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "service-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+          # Deteksi dependency injection (service/repository)
+          - pattern: "(?:private|protected|public)\\s+(?:readonly\\s+)?(?:[A-Za-z0-9_\\\\]+\\\\)?([A-Za-z0-9_]+(?:Service|Repository))\\s+\\$"
+            entities:
+              - id: "service-{1_lower}"
+                type: "Service"
+                label: "{1}"
+                domain: "services"
+            relations:
+              - from: "service-{parent_1_lower}"
+                to: "service-{1_lower}"
+                type: "depends_on"
+          # Deteksi module model yang digunakan
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "service-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+
+  # ===========================================================================
+  # REPOSITORIES
+  # ===========================================================================
+  repositories:
+    paths: ["app/Repositories", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Repository)"
+        entities:
+          - id: "repository-{1_lower}"
+            type: "Repository"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "repository-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "repository-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+
+  # ===========================================================================
+  # MODELS — Eloquent Models
+  # ===========================================================================
+  models:
+    paths: ["app/Models", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+extends\\s+(Model|Authenticatable|Pivot)"
+        entities:
+          - id: "model-{1_lower}"
+            type: "Model"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          # --- Eloquent Relationships (standard) ---
+          - pattern: "return\\s+\\$this->(hasMany|belongsTo|hasOne|belongsToMany|morphTo|morphMany|morphOne|morphToMany|morphedByMany|hasManyThrough|hasOneThrough)\\(([^:]+)::class"
+            entities:
+              - id: "model-{2_lower}"
+                type: "Model"
+                label: "{2}"
+                domain: "{domain}"
+            relations:
+              - from: "model-{parent_1_lower}"
+                to: "model-{2_lower}"
+                type: "{1}"
+
+          # --- Explicit $table property ---
+          - pattern: "protected\\s+\\$table\\s*=\\s*'([^']+)'"
+            relations:
+              - from: "model-{parent_1_lower}"
+                to: "table-{1}"
+                type: "uses_table"
+
+          # --- SoftDeletes trait ---
+          - pattern: "use\\s+[^;]*SoftDeletes"
+            limit: 1
+            entities:
+              - id: "trait-softdeletes"
+                type: "Trait"
+                label: "SoftDeletes"
+                domain: "traits"
+            relations:
+              - from: "model-{parent_1_lower}"
+                to: "trait-softdeletes"
+                type: "uses_trait"
+
+          # --- HasFactory trait ---
+          - pattern: "use\\s+[^;]*HasFactory"
+            limit: 1
+            entities:
+              - id: "trait-hasfactory"
+                type: "Trait"
+                label: "HasFactory"
+                domain: "traits"
+            relations:
+              - from: "model-{parent_1_lower}"
+                to: "trait-hasfactory"
+                type: "uses_trait"
+
+          # --- HasRoles (Spatie) ---
+          - pattern: "use\\s+[^;]*HasRoles"
+            limit: 1
+            entities:
+              - id: "trait-hasroles"
+                type: "Trait"
+                label: "HasRoles"
+                domain: "traits"
+            relations:
+              - from: "model-{parent_1_lower}"
+                to: "trait-hasroles"
+                type: "uses_trait"
+
+          # --- Implements interface ---
+          - pattern: "class\\s+[A-Za-z0-9_]+\\s+extends\\s+[A-Za-z0-9_]+\\s+implements\\s+([A-Za-z0-9_, ]+)"
+            limit: 1
+            entities:
+              - id: "model-{parent_1_lower}"
+                type: "Model"
+                label: "{parent_1}"
+                domain: "{domain}"
+                metadata:
+                  implements: "{1}"
+
+          # --- Scopes ---
+          - pattern: "public\\s+function\\s+scope([A-Za-z0-9_]+)\\("
+            entities:
+              - id: "scope-{parent_1_lower}-{1_lower}"
+                type: "Scope"
+                label: "Scope {1}"
+                domain: "{domain}"
+            relations:
+              - from: "model-{parent_1_lower}"
+                to: "scope-{parent_1_lower}-{1_lower}"
+                type: "has_scope"
+
+  # ===========================================================================
+  # POLICIES — Authorization
+  # ===========================================================================
+  policies:
+    paths: ["app/Policies", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Policy)"
+        entities:
+          - id: "policy-{1_lower}"
+            type: "Policy"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "policy-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "authorizes"
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "policy-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "authorizes"
+
+  # ===========================================================================
+  # MIDDLEWARE
+  # ===========================================================================
+  middleware:
+    paths: ["app/Http/Middleware", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)"
+        entities:
+          - id: "middleware-{1_lower}"
+            type: "Middleware"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+
+  # ===========================================================================
+  # FORM REQUESTS — Validation
+  # ===========================================================================
+  requests:
+    paths: ["app/Http/Requests", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Request)\\s+extends\\s+FormRequest"
+        entities:
+          - id: "request-{1_lower}"
+            type: "FormRequest"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "request-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "validates_for"
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "request-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "validates_for"
+
+  # ===========================================================================
+  # EVENTS
+  # ===========================================================================
+  events:
+    paths: ["app/Events", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)"
+        entities:
+          - id: "event-{1_lower}"
+            type: "Event"
+            label: "Event {1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "event-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "event-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+
+  # ===========================================================================
+  # LISTENERS
+  # ===========================================================================
+  listeners:
+    paths: ["app/Listeners", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)"
+        entities:
+          - id: "listener-{1_lower}"
+            type: "Listener"
+            label: "Listener {1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          # Listener handles event (via type-hint di handle method atau use statement)
+          - pattern: "use\\s+App\\\\Events\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "event-{1_lower}"
+                type: "Event"
+                label: "{1}"
+                domain: "events"
+            relations:
+              - from: "listener-{parent_1_lower}"
+                to: "event-{1_lower}"
+                type: "listens_to"
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Events\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "event-{1_lower}"
+                type: "Event"
+                label: "{1}"
+                domain: "events"
+            relations:
+              - from: "listener-{parent_1_lower}"
+                to: "event-{1_lower}"
+                type: "listens_to"
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "listener-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+
+  # ===========================================================================
+  # JOBS — Queued Jobs
+  # ===========================================================================
+  jobs:
+    paths: ["app/Jobs", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+implements\\s+ShouldQueue"
+        entities:
+          - id: "job-{1_lower}"
+            type: "Job"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "job-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "job-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+
+  # ===========================================================================
+  # NOTIFICATIONS
+  # ===========================================================================
+  notifications:
+    paths: ["app/Notifications", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+extends\\s+Notification"
+        entities:
+          - id: "notification-{1_lower}"
+            type: "Notification"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "notification-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+
+  # ===========================================================================
+  # OBSERVERS
+  # ===========================================================================
+  observers:
+    paths: ["app/Observers", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Observer)"
+        entities:
+          - id: "observer-{1_lower}"
+            type: "Observer"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "observer-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "observes"
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "observer-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "observes"
+
+  # ===========================================================================
+  # TRAITS — Custom Traits
+  # ===========================================================================
+  traits:
+    paths: ["app/Traits", "app/Modules"]
+    rules:
+      - pattern: "trait\\s+([A-Za-z0-9_]+)"
+        entities:
+          - id: "trait-{1_lower}"
+            type: "Trait"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+
+  # ===========================================================================
+  # ENUMS
+  # ===========================================================================
+  enums:
+    paths: ["app/Enums", "app/Modules"]
+    rules:
+      - pattern: "enum\\s+([A-Za-z0-9_]+)"
+        entities:
+          - id: "enum-{1_lower}"
+            type: "Enum"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+
+  # ===========================================================================
+  # CASTS — Custom Attribute Casts
+  # ===========================================================================
+  casts:
+    paths: ["app/Casts", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+implements\\s+CastsAttributes"
+        entities:
+          - id: "cast-{1_lower}"
+            type: "Cast"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+
+  # ===========================================================================
+  # EXCEPTIONS
+  # ===========================================================================
+  exceptions:
+    paths: ["app/Exceptions", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Exception)"
+        entities:
+          - id: "exception-{1_lower}"
+            type: "Exception"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+
+  # ===========================================================================
+  # PROVIDERS — Service Providers
+  # ===========================================================================
+  providers:
+    paths: ["app/Providers", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Provider)\\s+extends\\s+ServiceProvider"
+        entities:
+          - id: "provider-{1_lower}"
+            type: "ServiceProvider"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          # Model binding di provider
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "provider-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "registers"
+          # Policy registration
+          - pattern: "use\\s+App\\\\Policies\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "policy-{1_lower}"
+                type: "Policy"
+                label: "{1}"
+                domain: "policies"
+            relations:
+              - from: "provider-{parent_1_lower}"
+                to: "policy-{1_lower}"
+                type: "registers"
+
+  # ===========================================================================
+  # CONSOLE COMMANDS
+  # ===========================================================================
+  commands:
+    paths: ["app/Console/Commands", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+extends\\s+Command"
+        entities:
+          - id: "command-{1_lower}"
+            type: "ConsoleCommand"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          # Artisan command signature
+          - pattern: "\\$signature\\s*=\\s*'([^']+)'"
+            entities:
+              - id: "command-{parent_1_lower}"
+                type: "ConsoleCommand"
+                label: "{parent_1}"
+                domain: "{domain}"
+                metadata:
+                  signature: "{1}"
+          # Model usage
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "command-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "command-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+          # Service usage
+          - pattern: "use\\s+App\\\\Services\\\\(?:[A-Za-z0-9_]+\\\\)*([A-Za-z0-9_]+Service)"
+            entities:
+              - id: "service-{1_lower}"
+                type: "Service"
+                label: "{1}"
+                domain: "services"
+            relations:
+              - from: "command-{parent_1_lower}"
+                to: "service-{1_lower}"
+                type: "uses_service"
+
+  # ===========================================================================
+  # FILAMENT — Resources, Pages, Widgets, RelationManagers, Exporters, Importers
+  # ===========================================================================
+  filament:
+    paths: ["app/Filament", "app/Modules"]
+    rules:
+      # --- Filament Resource ---
+      - pattern: "class\\s+([A-Za-z0-9_]+Resource)\\s+extends\\s+Resource"
+        entities:
+          - id: "filament-resource-{1_lower}"
+            type: "FilamentResource"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          # Model yang dikelola resource
+          - pattern: "protected\\s+static\\s+\\?string\\s+\\$model\\s*=\\s*([A-Za-z0-9_]+)::class"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "filament-resource-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "manages_model"
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "filament-resource-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+
+      # --- Filament Pages (generic) ---
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+extends\\s+(?:Page|BasePage|ListRecords|CreateRecord|EditRecord|ViewRecord|ManageRecords)"
+        entities:
+          - id: "filament-page-{1_lower}"
+            type: "FilamentPage"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "filament-page-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+
+      # --- Filament Widgets ---
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+extends\\s+(?:Widget|BaseWidget|ChartWidget|StatsOverviewWidget|TableWidget)"
+        entities:
+          - id: "filament-widget-{1_lower}"
+            type: "FilamentWidget"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "filament-widget-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+
+      # --- Filament RelationManagers ---
+      - pattern: "class\\s+([A-Za-z0-9_]+RelationManager)\\s+extends\\s+RelationManager"
+        entities:
+          - id: "filament-relation-{1_lower}"
+            type: "FilamentRelationManager"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "filament-relation-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "manages_model"
+
+      # --- Filament Exporters ---
+      - pattern: "class\\s+([A-Za-z0-9_]+Exporter)\\s+extends\\s+Exporter"
+        entities:
+          - id: "filament-exporter-{1_lower}"
+            type: "FilamentExporter"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "filament-exporter-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "exports_model"
+
+      # --- Filament Importers ---
+      - pattern: "class\\s+([A-Za-z0-9_]+Importer)\\s+extends\\s+Importer"
+        entities:
+          - id: "filament-importer-{1_lower}"
+            type: "FilamentImporter"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "filament-importer-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "imports_model"
+
+  # ===========================================================================
+  # LIVEWIRE — Components
+  # ===========================================================================
+  livewire:
+    paths: ["app/Livewire", "app/Modules"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+extends\\s+Component"
+        entities:
+          - id: "livewire-{1_lower}"
+            type: "LivewireComponent"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "livewire-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "livewire-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+
+  # ===========================================================================
+  # SEEDERS
+  # ===========================================================================
+  seeders:
+    paths: ["database/seeders"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Seeder)\\s+extends\\s+Seeder"
+        entities:
+          - id: "seeder-{1_lower}"
+            type: "Seeder"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "seeder-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "seeds"
+          - pattern: "use\\s+App\\\\Modules\\\\[A-Za-z0-9_]+\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "seeder-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "seeds"
+          # Seeder memanggil seeder lain
+          - pattern: "\\$this->call\\(([A-Za-z0-9_]+)::class"
+            entities:
+              - id: "seeder-{1_lower}"
+                type: "Seeder"
+                label: "{1}"
+                domain: "{domain}"
+            relations:
+              - from: "seeder-{parent_1_lower}"
+                to: "seeder-{1_lower}"
+                type: "calls_seeder"
+
+  # ===========================================================================
+  # FACTORIES
+  # ===========================================================================
+  factories:
+    paths: ["database/factories"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Factory)\\s+extends\\s+Factory"
+        entities:
+          - id: "factory-{1_lower}"
+            type: "Factory"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "protected\\s+\\$model\\s*=\\s*([A-Za-z0-9_]+)::class"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "factory-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "creates_model"
+
+  # ===========================================================================
+  # CONFIG — Configuration Files & Infrastructure
+  # ===========================================================================
+  config:
+    paths: ["config", "docker-compose.yml", "docker-compose.yaml", ".env.example"]
+    rules:
+      - pattern: "^(.*)$"
+        limit: 1
+        entities:
+          - id: "{file_id}"
+            type: "ConfigFile"
+            label: "{rel_path}"
+            domain: "{domain}"
+      - pattern: "(?i)redis"
+        limit: 1
+        entities:
+          - id: "redis"
+            type: "InfraService"
+            label: "Redis"
+            domain: "infrastructure"
+        relations:
+          - from: "{file_id}"
+            to: "redis"
+            type: "configures"
+      - pattern: "(?i)mysql|mariadb"
+        limit: 1
+        entities:
+          - id: "mysql"
+            type: "InfraService"
+            label: "MySQL"
+            domain: "infrastructure"
+        relations:
+          - from: "{file_id}"
+            to: "mysql"
+            type: "configures"
+      - pattern: "(?i)minio|s3"
+        limit: 1
+        entities:
+          - id: "s3"
+            type: "InfraService"
+            label: "S3/MinIO"
+            domain: "infrastructure"
+        relations:
+          - from: "{file_id}"
+            to: "s3"
+            type: "configures"
+      - pattern: "(?i)mailgun|smtp|mailtrap|ses"
+        limit: 1
+        entities:
+          - id: "mail"
+            type: "InfraService"
+            label: "Mail"
+            domain: "infrastructure"
+        relations:
+          - from: "{file_id}"
+            to: "mail"
+            type: "configures"
+
+  # ===========================================================================
+  # DOCS — Known Issues & Decisions (dari markdown)
+  # ===========================================================================
+  docs:
+    paths: ["docs"]
+    rules:
+      - pattern: "\\*\\*ID\\*\\*:\\s*(KI-\\d+)"
+        entities:
+          - id: "{1_lower}"
+            type: "KnownIssue"
+            label: "{1}"
+            domain: "{domain}"
+      - pattern: "\\*\\*ID\\*\\*:\\s*(DEC-\\d+)"
+        entities:
+          - id: "{1_lower}"
+            type: "Decision"
+            label: "{1}"
+            domain: "{domain}"
+
+  # ===========================================================================
+  # FILAMENT RESOURCES
+  # ===========================================================================
+  filament:
+    paths: ["app/Filament"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Resource)\\s+extends\\s+Resource"
+        entities:
+          - id: "filament-{1_lower}"
+            type: "FilamentResource"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "protected\\s+static\\s+\\?string\\s+\\$model\\s*=\\s*([A-Za-z0-9_]+)::class"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "filament-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "manages"
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+extends\\s+(CreateRecord|EditRecord|ListRecords|Page)"
+        entities:
+          - id: "filament-page-{1_lower}"
+            type: "FilamentPage"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+
+  # ===========================================================================
+  # LIVEWIRE COMPONENTS
+  # ===========================================================================
+  livewire:
+    paths: ["app/Http/Livewire", "app/Livewire"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+extends\\s+Component"
+        entities:
+          - id: "livewire-{1_lower}"
+            type: "LivewireComponent"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "use\\s+App\\\\Models\\\\([A-Za-z0-9_]+)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "livewire-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "uses_model"
+          - pattern: "view\\('([^']+)'\\)"
+            entities:
+              - id: "view-{1_slug}"
+                type: "View"
+                label: "{1}"
+                domain: "views"
+            relations:
+              - from: "livewire-{parent_1_lower}"
+                to: "view-{1_slug}"
+                type: "renders"
+
+  # ===========================================================================
+  # SEEDERS
+  # ===========================================================================
+  seeders:
+    paths: ["database/seeders"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Seeder)\\s+extends\\s+Seeder"
+        entities:
+          - id: "seeder-{1_lower}"
+            type: "Seeder"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "([A-Za-z0-9_]+)::(create|factory)"
+            entities:
+              - id: "model-{1_lower}"
+                type: "Model"
+                label: "{1}"
+                domain: "models"
+            relations:
+              - from: "seeder-{parent_1_lower}"
+                to: "model-{1_lower}"
+                type: "seeds"
+
+  # ===========================================================================
+  # FACTORIES
+  # ===========================================================================
+  factories:
+    paths: ["database/factories"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+Factory)\\s+extends\\s+Factory"
+        entities:
+          - id: "factory-{1_lower}"
+            type: "Factory"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+
+  # ===========================================================================
+  # MAIL / MAILABLES
+  # ===========================================================================
+  mail:
+    paths: ["app/Mail"]
+    rules:
+      - pattern: "class\\s+([A-Za-z0-9_]+)\\s+extends\\s+Mailable"
+        entities:
+          - id: "mailable-{1_lower}"
+            type: "Mailable"
+            label: "{1}"
+            domain: "{domain}"
+            metadata:
+              primary: true
+        sub_rules:
+          - pattern: "view\\('([^']+)'\\)"
+            entities:
+              - id: "view-{1_slug}"
+                type: "View"
+                label: "{1}"
+                domain: "views"
+            relations:
+              - from: "mailable-{parent_1_lower}"
+                to: "view-{1_slug}"
+                type: "renders"
+
+  # ===========================================================================
+  # VIEWS
+  # ===========================================================================
+  views:
+    paths: ["resources/views"]
+    rules:
+      - pattern: ".*"
+        limit: 1
+        entities:
+          - id: "view-{file_id}"
+            type: "View"
+            label: "{rel_path}"
+            domain: "{domain}"
+            metadata:
+              primary: true
