@@ -39,7 +39,8 @@ async function main() {
     format: "text",
     debug: false,
     intent: "",
-    subject: ""
+    subject: "",
+    grep: ""
   };
 
   for (let i = 1; i < rawArgs.length; i++) {
@@ -54,6 +55,7 @@ async function main() {
     else if (val === "--depth") parsedArgs.depth = parseInt(rawArgs[++i], 10);
     else if (val === "--format") parsedArgs.format = rawArgs[++i];
     else if (val === "--debug") parsedArgs.debug = true;
+    else if (val === "--grep") parsedArgs.grep = rawArgs[++i];
   }
 
   if (command === "sync") {
@@ -141,7 +143,7 @@ async function main() {
       const graph = JSON.parse(fs.readFileSync(GRAPH_PATH, "utf-8"));
       let found = false;
       for (const n of Object.values(graph.nodes) as any[]) {
-        if (n.id.toLowerCase() === arg.toLowerCase()) {
+        if (n.id.toLowerCase() === arg.toLowerCase() || (n.label && n.label.toLowerCase() === arg.toLowerCase())) {
           found = true;
           console.log(`Node: ${JSON.stringify(n, null, 2)}`);
           console.log("Edges:");
@@ -163,17 +165,56 @@ async function main() {
         console.log("Error: Provide a node_id for impact analysis. E.g. contexta impact model-user");
         return;
       }
-      const impacts = getImpact(graph, arg, parsedArgs.depth);
+      let targetId = arg;
+      for (const n of Object.values(graph.nodes) as any[]) {
+        if (n.id.toLowerCase() === arg.toLowerCase() || (n.label && n.label.toLowerCase() === arg.toLowerCase())) {
+          targetId = n.id;
+          break;
+        }
+      }
+      let impacts = getImpact(graph, targetId, parsedArgs.depth);
+
+      if (parsedArgs.grep) {
+        const grepTarget = parsedArgs.grep.toLowerCase();
+        const filteredImpacts = [];
+        
+        for (const imp of impacts) {
+           const targetNode = graph.nodes[imp.to] || {};
+           const filesToCheck: string[] = [];
+           if (targetNode.path) filesToCheck.push(targetNode.path);
+           if (targetNode.discovered_from) filesToCheck.push(...targetNode.discovered_from);
+           
+           let matched = false;
+           for (const file of Array.from(new Set(filesToCheck))) {
+              const fullPath = path.join(process.cwd(), file);
+              try {
+                if (fs.existsSync(fullPath)) {
+                  const content = fs.readFileSync(fullPath, "utf-8").toLowerCase();
+                  if (content.includes(grepTarget)) {
+                    matched = true;
+                    break;
+                  }
+                }
+              } catch(e) {}
+           }
+           
+           if (matched) {
+             filteredImpacts.push(imp);
+           }
+        }
+        impacts = filteredImpacts;
+      }
       
       if (parsedArgs.format === "json") {
         console.log(JSON.stringify(impacts, null, 2));
       } else {
-        console.log(`=== IMPACT ANALYSIS FOR '${arg}' (Depth ${parsedArgs.depth}) ===`);
+        const grepInfo = parsedArgs.grep ? ` (Filtered by keyword: "${parsedArgs.grep}")` : "";
+        console.log(`=== IMPACT ANALYSIS FOR '${arg}' (Depth ${parsedArgs.depth})${grepInfo} ===`);
         if (!impacts || impacts.length === 0) console.log("No impacted nodes found.");
         for (const imp of impacts) {
-          const prefix = "  ".repeat(imp.depth);
-          const arrow = imp.dir === "impacted_by" ? "<--" : "-->";
-          console.log(`${prefix} [${imp.depth}] ${imp.from} ${arrow} [${imp.type}] ${arrow} ${imp.to}`);
+           const prefix = "  ".repeat(imp.depth);
+           const arrow = imp.dir === "impacted_by" ? "<--" : "-->";
+           console.log(`${prefix} [${imp.depth}] ${imp.from} ${arrow} [${imp.type}] ${arrow} ${imp.to}`);
         }
       }
     } catch (e) {
@@ -186,7 +227,14 @@ async function main() {
         console.log("Error: Provide a node_id for visualization.");
         return;
       }
-      console.log(generateMermaid(graph, arg));
+      let targetId = arg;
+      for (const n of Object.values(graph.nodes) as any[]) {
+        if (n.id.toLowerCase() === arg.toLowerCase() || (n.label && n.label.toLowerCase() === arg.toLowerCase())) {
+          targetId = n.id;
+          break;
+        }
+      }
+      console.log(generateMermaid(graph, targetId));
     } catch (e) {
       console.log("Graph not found. Run scan first.");
     }

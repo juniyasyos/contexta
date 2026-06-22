@@ -49,17 +49,43 @@ bun run contexta query --intent data_model_lookup --subject "\\App\\Models\\User
 
 ---
 
-## 2. Eksplorasi Arsitektur Lanjutan (Graph Impact)
+## 2. Eksplorasi Arsitektur Lanjutan (Graph Impact & Hybrid Search)
 
 Fitur impact di Contexta memungkinkan kita melacak efek berantai jika sebuah komponen diubah.
 
-**Perintah (CLI Graph):**
+**Perintah (CLI Graph Dasar):**
 ```bash
-bun run contexta inspect "\\App\\Models\\User"
+bun run contexta inspect "User"
 ```
 
-**Output Konseptual:**
-Jika Anda ingin tahu "Controller mana saja yang bergantung pada Model User?", Contexta akan menelusuri `graph.json` dan membalikkan relasi, alih-alih melakukan *grep/text-search* yang memakan banyak token. Ini sangat ideal untuk *impact analysis* di proyek besar.
+Jika Anda ingin tahu "Controller mana saja yang bergantung pada Model User?", Contexta akan menelusuri `graph.json` dan membalikkan relasi, alih-alih melakukan *grep/text-search* yang memakan banyak token. Ini sangat ideal untuk *impact analysis* makro.
+
+**Namun, ini bisa menimbulkan terlalu banyak hasil jika model sering digunakan!**
+
+Oleh karena itu, Contexta dilengkapi fitur **Hybrid Search (Macro Graph + Micro Grep)**. Fitur ini memungkinkan AI Agent untuk menyaring *impact tree* HANYA pada file-file yang secara literal memanggil nama fungsi yang sedang dianalisis.
+
+**Perintah Hybrid Search:**
+```bash
+# Skenario: Anda mengubah fungsi `hasUnitKerjaCached()` di model User.
+# Siapa saja yang terdampak?
+bun run contexta impact "model-user" --grep "hasUnitKerjaCached"
+```
+
+**Output:**
+```text
+=== IMPACT ANALYSIS FOR 'model-user' (Depth 3) (Filtered by keyword: "hasUnitKerjaCached") ===
+   [1] model-user <-- [belongsto] <-- model-laporanimut
+   [1] model-user <-- [belongstomany] <-- model-unitkerja
+     [2] model-laporanimut <-- [uses_model] <-- filament-widget-recommendationanalysisunitkerjawidget
+     [2] model-laporanimut <-- [uses_model] <-- filament-widget-laporanunitwidget
+     [2] model-dailyreportresponse <-- [manages_model] <-- filament-resource-dailyreportentryresource
+```
+
+**Penjelasan Sistem Hybrid:**
+- Secara otomatis Contexta mengumpulkan semua file yang bergantung pada `model-user` (bisa ratusan file).
+- Lalu, Contexta mengeksekusi pemindaian *teks internal (grep)* HANYA di dalam sekumpulan file tersebut untuk mencari eksistensi kata `"hasUnitKerjaCached"`.
+- Contexta hanya menampilkan jalur dependensi (*edges*) ke file-file yang secara pasti memanggil fungsi tersebut, mengerucutkan ratusan baris menjadi hanya belasan baris paling relevan.
+- Sangat direkomendasikan bagi AI Agent yang ingin melakukan perombakan level fungsi (*micro refactoring*)!
 
 ---
 

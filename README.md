@@ -108,6 +108,10 @@ bun run index.ts inspect "model-user"
 # Melacak siapa saja yang terdampak jika suatu file diubah (misal kedalaman 3 tingkat)
 bun run index.ts impact "model-user" --depth 3
 
+# [BARU] Hybrid Search (Macro Graph + Micro Grep)
+# Sangat direkomendasikan untuk AI Agent: Menyaring impact tree hanya pada file yang memanggil nama fungsi spesifik
+bun run index.ts impact "model-user" --depth 3 --grep "hasUnitKerjaCached"
+
 # Visualisasi Arsitektur (Mermaid.js)
 # Men-generate kode diagram Mermaid TD untuk dirender secara visual (Markdown/GitHub)
 bun run index.ts visualize "controller-usercontroller"
