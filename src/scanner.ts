@@ -202,16 +202,16 @@ function scanFileWithConfig(filepath: string, relPath: string, domain: string, c
   processRules(rules, content, fileId, relPath, domain, nodes, edges, fileMetadata);
 }
 
-function cleanNodesForOutput(nodes: Record<string, any>): any[] {
-  const result: any[] = [];
-  for (const node of Object.values(nodes)) {
+function cleanNodesForOutput(nodes: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [id, node] of Object.entries(nodes)) {
     const cleanNode: any = {};
-    for (const [k, v] of Object.entries(node)) {
+    for (const [k, v] of Object.entries(node as any)) {
       if (!k.startsWith('_')) {
         cleanNode[k] = v;
       }
     }
-    result.push(cleanNode);
+    result[id] = cleanNode;
   }
   return result;
 }
@@ -305,35 +305,47 @@ export function runScan() {
   }
   fs.writeFileSync(CHUNKS_PATH, JSON.stringify(finalChunks, null, 2), 'utf-8');
 
-  const cleanNodeList = cleanNodesForOutput(nodes);
+  const cleanNodeDict = cleanNodesForOutput(nodes);
   const edgeList = edgesDictToList(edges);
 
-  let finalGraph = { nodes: cleanNodeList, edges: edgeList };
+  const adjacency: Record<string, any[]> = {};
+  const search_index: Record<string, string[]> = {};
+
+  for (const [id, node] of Object.entries(cleanNodeDict)) {
+     const words = `${(node as any).id} ${(node as any).label} ${(node as any).type}`.toLowerCase().match(/[a-z0-9-]+/g) || [];
+     for (const w of words) {
+       if (w.length > 2) {
+         if (!search_index[w]) search_index[w] = [];
+         if (!search_index[w].includes(id)) search_index[w].push(id);
+       }
+     }
+  }
+
+  for (const e of edgeList) {
+    const f = e.from;
+    const t = e.to;
+    if (!adjacency[f]) adjacency[f] = [];
+    if (!adjacency[t]) adjacency[t] = [];
+    adjacency[t].push({ node: f, type: e.type, dir: "impacted_by" });
+    adjacency[f].push({ node: t, type: e.type, dir: "impacts" });
+  }
+
+  let finalGraph = { nodes: cleanNodeDict, edges: edgeList, adjacency, search_index };
 
   if (fs.existsSync(GRAPH_PATH)) {
     try {
       const existingGraph = JSON.parse(fs.readFileSync(GRAPH_PATH, 'utf-8'));
-      const existingNodesById: Record<string, any> = {};
+      const existingNodesById: Record<string, any> = (!Array.isArray(existingGraph.nodes) && existingGraph.nodes) ? existingGraph.nodes : {};
       
-      for (const n of (existingGraph.nodes || [])) {
-        existingNodesById[n.id] = n;
-      }
-
-      for (const n of finalGraph.nodes) {
-        const nid = n.id;
+      for (const [nid, n] of Object.entries(finalGraph.nodes)) {
         if (existingNodesById[nid]) {
-          // If the new scan says this is primary, update it
-          // Note: we can't easily track new_is_primary like Python did unless we export it
-          // Python had a bug `if new_is_primary:` which was undefined in Python script!
-          // We will just overwrite if n._primary_source was true (but we cleaned it)
-          // Actually, let's keep it simple: merge the fields.
-          for (const [k, v] of Object.entries(n)) {
+          for (const [k, v] of Object.entries(n as any)) {
              if (!["id", "discovered_from"].includes(k)) {
                 existingNodesById[nid][k] = v;
              }
           }
           const existingDf = existingNodesById[nid].discovered_from || [];
-          const newDf = n.discovered_from || [];
+          const newDf = (n as any).discovered_from || [];
           existingNodesById[nid].discovered_from = Array.from(new Set([...existingDf, ...newDf]));
         } else {
           existingNodesById[nid] = n;
@@ -347,10 +359,35 @@ export function runScan() {
       for (const e of finalGraph.edges) {
         existingEdges[`${e.from}|${e.to}|${e.type}`] = e;
       }
+      
+      const mergedNodes = existingNodesById;
+      const mergedEdges = Object.values(existingEdges);
+      
+      const mergedAdj: Record<string, any[]> = {};
+      const mergedIdx: Record<string, string[]> = {};
+      for (const [id, node] of Object.entries(mergedNodes)) {
+         const words = `${(node as any).id} ${(node as any).label} ${(node as any).type}`.toLowerCase().match(/[a-z0-9-]+/g) || [];
+         for (const w of words) {
+           if (w.length > 2) {
+             if (!mergedIdx[w]) mergedIdx[w] = [];
+             if (!mergedIdx[w].includes(id)) mergedIdx[w].push(id);
+           }
+         }
+      }
+      for (const e of mergedEdges) {
+        const f = e.from;
+        const t = e.to;
+        if (!mergedAdj[f]) mergedAdj[f] = [];
+        if (!mergedAdj[t]) mergedAdj[t] = [];
+        mergedAdj[t].push({ node: f, type: e.type, dir: "impacted_by" });
+        mergedAdj[f].push({ node: t, type: e.type, dir: "impacts" });
+      }
 
       finalGraph = {
-        nodes: Object.values(existingNodesById),
-        edges: Object.values(existingEdges)
+        nodes: mergedNodes,
+        edges: mergedEdges,
+        adjacency: mergedAdj,
+        search_index: mergedIdx
       };
     } catch (e) {}
   }

@@ -14,8 +14,10 @@ export interface EdgeData {
 }
 
 export interface Graph {
-  nodes: NodeData[];
+  nodes: Record<string, NodeData>;
   edges: EdgeData[];
+  adjacency?: Record<string, any[]>;
+  search_index?: Record<string, string[]>;
 }
 
 function addNode(
@@ -275,5 +277,27 @@ export function buildGraph(allFiles: { filename: string; content: string }[]): G
     }
   }
 
-  return { nodes: Object.values(nodes), edges };
+  const adjacency: Record<string, any[]> = {};
+  const search_index: Record<string, string[]> = {};
+
+  for (const [id, node] of Object.entries(nodes)) {
+    const words = `${node.id} ${node.label} ${node.type}`.toLowerCase().match(/[a-z0-9-]+/g) || [];
+    for (const w of words) {
+      if (w.length > 2) {
+        if (!search_index[w]) search_index[w] = [];
+        if (!search_index[w].includes(id)) search_index[w].push(id);
+      }
+    }
+  }
+
+  for (const e of edges) {
+    const f = e.from;
+    const t = e.to;
+    if (!adjacency[f]) adjacency[f] = [];
+    if (!adjacency[t]) adjacency[t] = [];
+    adjacency[t].push({ node: f, type: e.type, dir: "impacted_by" });
+    adjacency[f].push({ node: t, type: e.type, dir: "impacts" });
+  }
+
+  return { nodes, edges, adjacency, search_index };
 }

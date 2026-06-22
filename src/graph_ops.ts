@@ -1,18 +1,22 @@
 import { Graph } from "./graph";
 
-export function getImpact(graph: Graph, nodeId: string, maxDepth: number = 3) {
+export function getImpact(graph: any, nodeId: string, maxDepth: number = 3) {
   const id = nodeId.toLowerCase();
-  const edges = graph.edges || [];
+  let adj = graph.adjacency;
   
-  const adj: Record<string, any[]> = {};
-  for (const e of edges) {
-    const f = e.from;
-    const t = e.to;
-    if (!adj[f]) adj[f] = [];
-    if (!adj[t]) adj[t] = [];
-    
-    adj[t].push({ node: f, type: e.type, dir: "impacted_by" });
-    adj[f].push({ node: t, type: e.type, dir: "impacts" });
+  // Fallback if not precomputed
+  if (!adj) {
+    adj = {};
+    const edges = graph.edges || [];
+    for (const e of edges) {
+      const f = e.from;
+      const t = e.to;
+      if (!adj[f]) adj[f] = [];
+      if (!adj[t]) adj[t] = [];
+      
+      adj[t].push({ node: f, type: e.type, dir: "impacted_by" });
+      adj[f].push({ node: t, type: e.type, dir: "impacts" });
+    }
   }
 
   const visited = new Set<string>([id]);
@@ -42,13 +46,10 @@ export function getImpact(graph: Graph, nodeId: string, maxDepth: number = 3) {
   return impactResult;
 }
 
-export function generateMermaid(graph: Graph, nodeId: string) {
+export function generateMermaid(graph: any, nodeId: string) {
   const id = nodeId.toLowerCase();
   const edges = graph.edges || [];
-  const nodes: Record<string, any> = {};
-  for (const n of graph.nodes || []) {
-    nodes[n.id] = n;
-  }
+  const nodes: Record<string, any> = graph.nodes || {};
   
   if (!nodes[id]) return "Node not found.";
   

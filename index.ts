@@ -103,7 +103,7 @@ async function main() {
       const graph = JSON.parse(fs.readFileSync(GRAPH_PATH, "utf-8"));
       if (arg.toLowerCase() === "stats") {
         const nodeTypes: Record<string, number> = {};
-        for (const n of graph.nodes) {
+        for (const n of Object.values(graph.nodes) as any[]) {
           const ntype = n.type || "unknown";
           nodeTypes[ntype] = (nodeTypes[ntype] || 0) + 1;
         }
@@ -114,7 +114,7 @@ async function main() {
         }
         
         console.log("=== GRAPH STATS ===");
-        console.log(`Total Nodes: ${graph.nodes.length}`);
+        console.log(`Total Nodes: ${Object.keys(graph.nodes).length}`);
         console.log(`Total Edges: ${graph.edges.length}`);
         console.log("\nNode Types:");
         for (const [k, v] of Object.entries(nodeTypes)) console.log(`  - ${k}: ${v}`);
@@ -123,7 +123,7 @@ async function main() {
         return;
       }
       
-      for (const n of graph.nodes) {
+      for (const n of Object.values(graph.nodes) as any[]) {
         if (n.label.toLowerCase().includes(arg.toLowerCase()) || n.id.toLowerCase().includes(arg.toLowerCase())) {
           console.log(`Node: ${JSON.stringify(n).replace(/"/g, "'")}`);
           for (const e of graph.edges) {
@@ -140,7 +140,7 @@ async function main() {
     try {
       const graph = JSON.parse(fs.readFileSync(GRAPH_PATH, "utf-8"));
       let found = false;
-      for (const n of graph.nodes) {
+      for (const n of Object.values(graph.nodes) as any[]) {
         if (n.id.toLowerCase() === arg.toLowerCase()) {
           found = true;
           console.log(`Node: ${JSON.stringify(n, null, 2)}`);

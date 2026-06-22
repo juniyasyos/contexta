@@ -10,39 +10,66 @@ function tokenize(text: string): Set<string> {
 function scoreChunks(intent: string, subject: string, entities: string[], keys: string[], preferred_sources: string[], avoid_sources: string[], chunks: any[], domains: string[] = [], top_k: number = 3): [number, any][] {
   const scored: [number, any][] = [];
 
-  for (const chunk of chunks) {
-    const source_file = (chunk.source_file || "").toLowerCase();
+  const q_tokens = new Set<string>();
+  if (subject) tokenize(subject).forEach(t => q_tokens.add(t));
+  for (const e of entities) tokenize(e).forEach(t => q_tokens.add(t));
+  for (const k of keys) tokenize(k).forEach(t => q_tokens.add(t));
+
+  const N = chunks.length;
+  const df: Record<string, number> = {};
+  let total_dl = 0;
+  
+  const chunk_data = chunks.map(c => {
+    const source_file = (c.source_file || "").toLowerCase();
+    const full_text = ((c.heading || "") + " " + (c.content || "")).toLowerCase();
+    const tokens = full_text.match(/[a-z0-9-]+/g) || [];
+    total_dl += tokens.length;
+    const tf: Record<string, number> = {};
+    for (const t of tokens) {
+       if (t.length > 2) tf[t] = (tf[t] || 0) + 1;
+    }
+    for (const t of Object.keys(tf)) {
+       df[t] = (df[t] || 0) + 1;
+    }
+    return { chunk: c, tf, dl: tokens.length, source_file, full_text };
+  });
+
+  const avgdl = N > 0 ? total_dl / N : 1;
+  const k1 = 1.5;
+  const b = 0.75;
+  const q_arr = Array.from(q_tokens);
+
+  for (const cd of chunk_data) {
+    const { chunk, tf, dl, source_file, full_text } = cd;
+
     if (domains && domains.length > 0) {
-      if (!domains.some(d => (chunk.domain || source_file).toLowerCase().includes(d.toLowerCase()))) {
+      if (!domains.some(d => ((chunk.domain as string) || source_file).toLowerCase().includes(d.toLowerCase()))) {
         continue;
       }
     }
 
-    const content_lower = (chunk.content || "").toLowerCase();
-    const heading_lower = (chunk.heading || "").toLowerCase();
-    const full_text = heading_lower + "\n" + content_lower;
-
     let score = 0;
-
-    if (subject && full_text.includes(subject.toLowerCase())) {
-      score += 10;
+    
+    // BM25 calculation
+    for (const q of q_arr) {
+      if (tf[q]) {
+        const idf = Math.log((N - (df[q] || 0) + 0.5) / ((df[q] || 0) + 0.5) + 1.0);
+        const tf_val = tf[q];
+        score += idf * ((tf_val * (k1 + 1)) / (tf_val + k1 * (1 - b + b * (dl / avgdl))));
+      }
     }
 
+    // Exact matches boost
+    if (subject && full_text.includes(subject.toLowerCase())) score += 10;
     for (const e of entities) {
       if (full_text.includes(e.toLowerCase())) score += 5;
     }
-
     for (const k of keys) {
       if (full_text.includes(k.toLowerCase())) score += 3;
     }
 
-    if (preferred_sources.some(ps => source_file.includes(ps.toLowerCase()))) {
-      score += 5;
-    }
-
-    if (avoid_sources.some(av => source_file.includes(av.toLowerCase()))) {
-      score -= 5;
-    }
+    if (preferred_sources.some(ps => source_file.includes(ps.toLowerCase()))) score += 5;
+    if (avoid_sources.some(av => source_file.includes(av.toLowerCase()))) score -= 5;
 
     if (score > 0) {
       scored.push([score, chunk]);
@@ -59,8 +86,28 @@ function scoreGraph(subject: string, entities: string[], keys: string[], graph: 
   for (const e of entities) tokenize(e).forEach(t => q_tokens.add(t));
   for (const k of keys) tokenize(k).forEach(t => q_tokens.add(t));
 
+  const search_index = graph.search_index || {};
+  let candidate_ids = new Set<string>();
+  
+  if (Object.keys(search_index).length > 0 && q_tokens.size > 0) {
+    for (const t of q_tokens) {
+       if (search_index[t]) {
+          for (const id of search_index[t]) candidate_ids.add(id);
+       }
+    }
+  } else {
+    for (const node of Object.values(graph.nodes || {}) as any[]) {
+      candidate_ids.add(node.id);
+    }
+  }
+
+  const nodesDict = graph.nodes || {};
   const scored: [number, any][] = [];
-  for (const node of graph.nodes || []) {
+  
+  for (const nid of candidate_ids) {
+    const node = nodesDict[nid];
+    if (!node) continue;
+
     if (domains && domains.length > 0) {
       if (!domains.some(d => (node.domain || node.source || "").toLowerCase().includes(d.toLowerCase()))) {
         continue;
@@ -100,18 +147,14 @@ function scoreGraph(subject: string, entities: string[], keys: string[], graph: 
   const relevant_nodes = scored.slice(0, 5).map(x => x[1]);
 
   const relevant_node_ids = new Set(relevant_nodes.map(n => n.id));
-  const node_lookup: Record<string, any> = {};
-  for (const n of graph.nodes || []) {
-    node_lookup[n.id] = n;
-  }
   
   const relevant_edges: any[] = [];
   for (const edge of graph.edges || []) {
     if (["has_column", "contains", "has_topic"].includes(edge.type)) continue;
 
     if (relevant_node_ids.has(edge.from) || relevant_node_ids.has(edge.to)) {
-      const from_node = node_lookup[edge.from];
-      const to_node = node_lookup[edge.to];
+      const from_node = nodesDict[edge.from];
+      const to_node = nodesDict[edge.to];
       if (from_node && to_node) {
         relevant_edges.push({
           from_label: from_node.label,
@@ -190,7 +233,7 @@ export function runContext(question: string, domains: string[] = []) {
 
 export function runQuery(intent: string, subject: string, entities: string[], keys: string[], domains: string[], top_k: number, mode: string, debug: boolean) {
   const { chunks, graph } = loadData();
-  if (chunks.length === 0 && (!graph.nodes || graph.nodes.length === 0)) {
+  if (chunks.length === 0 && (!graph.nodes || Object.keys(graph.nodes).length === 0)) {
     console.log("No data found. Run scan or ingest first.");
     return;
   }
@@ -245,7 +288,7 @@ export function runQuery(intent: string, subject: string, entities: string[], ke
     for (const e of (graph.edges || [])) {
       if (e.to === primary_id) {
         const f_id = e.from;
-        const f_node = (graph.nodes || []).find((n: any) => n.id === f_id);
+        const f_node = (graph.nodes || {})[f_id];
         if (!f_node) continue;
         const f_path = f_node.path || f_node.source;
         if (!f_path) continue;

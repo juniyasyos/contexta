@@ -134,5 +134,5 @@ export function runIngest() {
   const graph = buildGraph(files);
   fs.writeFileSync(GRAPH_PATH, JSON.stringify(graph, null, 2), "utf-8");
 
-  console.log(`  Created ${allChunks.length} chunks, ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
+  console.log(`  Created ${allChunks.length} chunks, ${Object.keys(graph.nodes).length} nodes, ${graph.edges.length} edges`);
 }
