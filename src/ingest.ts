@@ -8,6 +8,7 @@ const MAX_CHUNK_SIZE = 2000;
 interface Chunk {
   id: string;
   source_file: string;
+  breadcrumbs: string[];
   heading: string;
   chunk_index: number;
   content: string;
@@ -18,12 +19,13 @@ function headingLevel(line: string): number {
   return m ? m[1].length : 0;
 }
 
-function splitLongText(text: string, filename: string, heading: string, startIndex: number): Chunk[] {
+function splitLongText(text: string, filename: string, heading: string, breadcrumbs: string[], startIndex: number): Chunk[] {
   const paragraphs = text.split(/\n\s*\n/);
   const subChunks: Chunk[] = [];
   let buffer: string[] = [];
   let bufLen = 0;
   let idx = startIndex;
+  const baseId = filename.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
 
   for (let para of paragraphs) {
     para = para.trim();
@@ -32,8 +34,9 @@ function splitLongText(text: string, filename: string, heading: string, startInd
     if (bufLen + para.length > MAX_CHUNK_SIZE && buffer.length > 0) {
       idx++;
       subChunks.push({
-        id: `chunk-${idx.toString().padStart(4, "0")}`,
+        id: `${baseId}-chunk-${idx.toString().padStart(4, "0")}`,
         source_file: filename,
+        breadcrumbs,
         heading,
         chunk_index: idx,
         content: buffer.join("\n\n"),
@@ -49,8 +52,9 @@ function splitLongText(text: string, filename: string, heading: string, startInd
   if (buffer.length > 0) {
     idx++;
     subChunks.push({
-      id: `chunk-${idx.toString().padStart(4, "0")}`,
+      id: `${baseId}-chunk-${idx.toString().padStart(4, "0")}`,
       source_file: filename,
+      breadcrumbs,
       heading,
       chunk_index: idx,
       content: buffer.join("\n\n"),
@@ -63,25 +67,29 @@ function splitLongText(text: string, filename: string, heading: string, startInd
 function chunkMarkdown(filename: string, content: string): Chunk[] {
   const lines = content.split("\n");
   const chunks: Chunk[] = [];
-  let currentHeading = "(root)";
+  const headingStack: { level: number; text: string }[] = [];
   let currentLines: string[] = [];
   let chunkCounter = 0;
-  let headingEncountered = false;
+  const baseId = filename.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
 
   const flush = () => {
     const text = currentLines.join("\n").trim();
     if (!text) return;
     
+    const breadcrumbs = headingStack.map(h => h.text);
+    const heading = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1] : "(root)";
+    
     if (text.length > MAX_CHUNK_SIZE) {
-      const subChunks = splitLongText(text, filename, currentHeading, chunkCounter);
+      const subChunks = splitLongText(text, filename, heading, breadcrumbs, chunkCounter);
       chunks.push(...subChunks);
       chunkCounter += subChunks.length;
     } else {
       chunkCounter++;
       chunks.push({
-        id: `chunk-${chunkCounter.toString().padStart(4, "0")}`,
+        id: `${baseId}-chunk-${chunkCounter.toString().padStart(4, "0")}`,
         source_file: filename,
-        heading: currentHeading,
+        breadcrumbs,
+        heading,
         chunk_index: chunkCounter,
         content: text,
       });
@@ -91,12 +99,15 @@ function chunkMarkdown(filename: string, content: string): Chunk[] {
   for (const line of lines) {
     const h = headingLevel(line);
     if (h > 0) {
-      if (headingEncountered) {
-        flush();
-      } else {
-        headingEncountered = true;
+      flush();
+      const cleanHeading = line.replace(/^#+/, "").trim();
+      
+      // Pop stack until we find a level smaller than current
+      while (headingStack.length > 0 && headingStack[headingStack.length - 1].level >= h) {
+        headingStack.pop();
       }
-      currentHeading = line.replace(/^#+/, "").trim();
+      headingStack.push({ level: h, text: cleanHeading });
+      
       currentLines = [line];
     } else {
       currentLines.push(line);

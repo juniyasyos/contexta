@@ -1,10 +1,18 @@
 import fs from "fs";
 import { CHUNKS_PATH, GRAPH_PATH } from "./paths";
 
+const STOP_WORDS = new Set([
+  "apa", "ini", "itu", "yang", "untuk", "dari", "ke", "di", "dan", "atau", "dengan", "akan", "pada", "juga", "adalah", "sebagai",
+  "mengarah", "kemana", "dimana", "bagaimana", "siapa", "kapan", "mengapa", "kenapa", "buat", "ada", "tidak", "bukan", "belum",
+  "sudah", "telah", "bisa", "dapat", "cara", "apakah", "tentang", "sebuah", "suatu", "macam", "jenis", "seperti", "kalau", "jika",
+  "what", "where", "when", "why", "how", "who", "is", "are", "am", "was", "were", "be", "been", "being", "this", "that", "these", 
+  "those", "the", "a", "an", "for", "to", "in", "on", "at", "by", "with", "about", "like", "as", "if", "does", "do", "did"
+]);
+
 function tokenize(text: string): Set<string> {
   if (!text) return new Set();
   const words = text.toLowerCase().match(/[a-z0-9-]+/g) || [];
-  return new Set(words.filter(w => w.length > 2));
+  return new Set(words.filter(w => w.length > 2 && !STOP_WORDS.has(w)));
 }
 
 function scoreChunks(intent: string, subject: string, entities: string[], keys: string[], preferred_sources: string[], avoid_sources: string[], chunks: any[], domains: string[] = [], top_k: number = 3): [number, any][] {

@@ -25,6 +25,12 @@ Dibandingkan dengan pencarian konvensional (Grep) yang memuat seluruh *source co
 
 *Kesimpulan: Tool ini memangkas konsumsi token di fase awal (discovery) dengan membuang logika kode dan berfokus murni pada pemetaan struktur.*
 
+## ✨ Optimasi Pencarian & Chunking (Terbaru)
+
+Contexta dilengkapi dengan fitur mutakhir agar ekstraksi konteks semakin akurat:
+- **Semantic Chunking & Breadcrumbs:** Pemotongan dokumen Markdown tidak lagi sekadar teks terpisah, melainkan menyertakan hierarki *Heading* (`breadcrumbs`). AI akan tahu persis struktur dokumen tempat paragraf tersebut berasal.
+- **Strict Identifier Search:** Contexta tidak dirancang untuk menerima pertanyaan percakapan (*conversational*) seperti *"model user ini mengarah kemana?"*. Pencarian dilakukan secara ketat menggunakan *Identifier* yang spesifik (contoh: `\App\Models\User`, `UserController`, atau `auth`). Hal ini mencegah ambiguitas, memastikan akurasi pencarian 100%, dan menghindari hasil *false-positives*.
+- **📚 [Lihat Contoh Eksperimen & Output Query di Sini](docs/query-examples.md)**
 ## 🛠️ Instalasi & Setup
 
 1. **Install Package (Bun):**
@@ -32,12 +38,14 @@ Dibandingkan dengan pencarian konvensional (Grep) yang memuat seluruh *source co
 bun install
 ```
 
-2. **Build Knowledge Graph (Ingest / Scan):**
+2. **Build Knowledge Graph (Scan Kode & Ingest Docs):**
 ```bash
-# Melakukan scanning code & ingest docs secara penuh
-bun run index.ts ingest
-# atau
+# 1. Melakukan scanning arsitektur kode (menghasilkan graph.json)
 bun run index.ts scan
+
+# 2. Melakukan chunking dokumentasi Markdown (menghasilkan chunks.json)
+# Pastikan Anda sudah meletakkan file .md (misal README.md) ke dalam folder docs/ai-agent/contexta/input/
+bun run index.ts ingest
 ```
 
 ## ⚙️ Konfigurasi (Custom Config)
@@ -107,8 +115,9 @@ bun run index.ts visualize "controller-usercontroller"
 
 ### 2. Keyword & Intent-Based Querying
 ```bash
-# Mendapatkan konteks terstruktur untuk AI Agent (menggunakan intent routing & keyword scoring)
-bun run index.ts query --intent architecture_analysis --subject "Laporan Imut"
+# Mendapatkan konteks terstruktur untuk AI Agent (menggunakan intent routing & identifier)
+# CATATAN: Gunakan strict identifier, bukan kalimat natural.
+bun run index.ts query --intent architecture_analysis --subject "\\App\\Models\\User"
 
 # Intent yang tersedia:
 # project_overview, architecture_analysis, service_lookup, data_model_lookup,
