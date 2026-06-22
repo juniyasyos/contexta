@@ -203,7 +203,7 @@ export function runQuery(intent: string, subject: string, entities: string[], ke
     "command_lookup": { read_first: ["COMMANDS", "README"], read_if_needed: ["scripts", "package.json"], avoid_first: ["models", "services"] },
     "api_reference": { read_first: ["routes", "controllers"], read_if_needed: ["middlewares", "requests"], avoid_first: ["models", "migrations"] },
     "troubleshooting": { read_first: ["KNOWN_ISSUES", "CHANGELOG"], read_if_needed: ["logs", "exceptions"], avoid_first: ["docs", "README"] },
-    "rag_usage": { read_first: ["rag"], read_if_needed: ["config"], avoid_first: ["services", "models"] },
+    "contexta_usage": { read_first: ["contexta"], read_if_needed: ["config"], avoid_first: ["services", "models"] },
     "docs_lookup": { read_first: ["docs"], read_if_needed: [], avoid_first: [] }
   };
 

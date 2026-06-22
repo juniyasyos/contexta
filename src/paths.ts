@@ -3,16 +3,16 @@ import path from "path";
 import * as yaml from "js-yaml";
 
 export const PROJECT_ROOT = process.cwd();
-export const CONFIG_DIR = path.join(PROJECT_ROOT, "docs", "ai-agent", "rag");
+export const CONFIG_DIR = path.join(PROJECT_ROOT, "docs", "ai-agent", "contexta");
 export const CONFIG_FILE = path.join(CONFIG_DIR, "config.yml");
 
 export const defaultConfig = {
   docs_dir: "docs",
-  input_dir: "docs/ai-agent/rag/input",
-  output_dir: "docs/ai-agent/rag/output",
-  graph_file: "docs/ai-agent/rag/output/graph.json",
-  chunks_file: "docs/ai-agent/rag/output/chunks.json",
-  metadata_file: "docs/ai-agent/rag/output/metadata.json",
+  input_dir: "docs/ai-agent/contexta/input",
+  output_dir: "docs/ai-agent/contexta/output",
+  graph_file: "docs/ai-agent/contexta/output/graph.json",
+  chunks_file: "docs/ai-agent/contexta/output/chunks.json",
+  metadata_file: "docs/ai-agent/contexta/output/metadata.json",
 };
 
 export function loadOrCreateConfig(): Record<string, any> {

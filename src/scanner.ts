@@ -247,7 +247,7 @@ export function runScan() {
 
   const scannersDir = path.join(__dirname, "scanners");
   const configs: any[] = [];
-  const scannerName = process.env.RAG_SCANNER || "laravel";
+  const scannerName = process.env.CONTEXTA_SCANNER || "laravel";
   const scannerFile = path.join(scannersDir, `${scannerName}.yml`);
 
   if (fs.existsSync(scannerFile)) {

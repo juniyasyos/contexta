@@ -63,7 +63,7 @@ function copyFiles(files: string[]): string[] {
 
 export function syncDocs() {
   console.log("==================================================");
-  console.log("  Sync Docs → rag/input/");
+  console.log("  Sync Docs → contexta/input/");
   console.log("==================================================");
   cleanInputDir();
   const mdFiles = collectMarkdownFiles();

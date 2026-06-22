@@ -1,17 +1,17 @@
-# Project Intelligence RAG (Contexta Caveman Librarian)
+# Contexta (Caveman Librarian)
 
-**Project Intelligence RAG (Contexta)** adalah sebuah *CLI tool* yang dirancang khusus sebagai **"Pustakawan"** untuk memetakan arsitektur proyek (termasuk Laravel) secara lokal. Tool ini mengekstrak entitas dan relasi dari *source code* dan dokumentasi ke dalam *Knowledge Graph* berformat JSON, menghemat **hingga 99%** konsumsi *context window* LLM.
+**Contexta** adalah sebuah *CLI tool* yang dirancang khusus sebagai **"Pustakawan"** untuk memetakan arsitektur proyek (termasuk Laravel) secara lokal. Tool ini mengekstrak entitas dan relasi dari *source code* dan dokumentasi ke dalam *Knowledge Graph* berformat JSON, menghemat **hingga 99%** konsumsi *context window* LLM.
 
 ## 🌟 Desain Arsitektur & Filosofi (Mode Pembacaan Knowledge)
 
 Tool ini beroperasi dengan prinsip **"Caveman Librarian"** — murni sebagai mesin *retrieval & indexing* tanpa menggunakan LLM lokal untuk menghasilkan jawaban (NLG di-disable). Semua pemrosesan berbasis *pattern matching* bukan AST parsing berat, sehingga sangat cepat dan ringan.
 
-**Karakteristik Kunci (Sama seperti versi Python `rag-project`):**
+**Karakteristik Kunci:**
 - **Zero Database:** Hanya menggunakan `chunks.json` dan `graph.json` lokal. Tidak ada dependensi Neo4j atau Vector DB. Ini adalah implementasi dari **CacheLock** di mana data yang sudah dibaca dikunci dalam JSON statis.
 - **Anti-Fragile Scanner:** Memiliki *in-memory comment stripper* yang otomatis membuang komentar/kode mati sebelum di-*scan*, mencegah *false-positive* relasi hantu.
 - **Multi-Domain Scanning (seperti Laravel):** Mendeteksi berbagai domain arsitektur (Models, Services, Controllers, Routes, Migrations, Policies, dll).
 - **Cross-Domain Relations:** Mampu mendeteksi injeksi dependensi (`depends_on`) dan pemanggilan lintas domain (`uses_model`, `authorizes`, `seeds`, `renders`).
-- **Stateless:** Kode *parser* terpisah dari penyimpanan data (yang default-nya diletakkan di `docs/ai-agent/rag/output/` pada direktori proyek target).
+- **Stateless:** Kode *parser* terpisah dari penyimpanan data (yang default-nya diletakkan di `docs/ai-agent/contexta/output/` pada direktori proyek target).
 
 ## 🚀 Performa & Efisiensi Konteks
 
@@ -56,7 +56,7 @@ Contexta/
 │   └── scanners/       # [BARU] Aturan pattern matching (YAML)
 │       ├── laravel.yml # Aturan ekstrak node & edge Laravel
 │       └── dictionary.yml 
-├── docs/ai-agent/rag/output/ # (Otomatis dibuat) Penyimpanan graph.json, chunks.json, dll.
+├── docs/ai-agent/contexta/output/ # (Otomatis dibuat) Penyimpanan graph.json, chunks.json, dll.
 ├── bun.lock            # Lockfile (Dependency Lock)
 ├── package.json        # Konfigurasi dependensi
 └── README.md
@@ -98,13 +98,13 @@ bun run index.ts query --intent architecture_analysis --subject "Laporan Imut"
 
 ### 3. Pencarian Raw
 ```bash
-# Mencari string spesifik dalam output RAG
+# Mencari string spesifik dalam output Contexta
 bun run index.ts search --intent docs_lookup --subject "authentication"
 ```
 
 ## 📁 Struktur Data Graph (Cache & Lock)
 
-Output *cache* pengetahuan disimpan di direktori output (default: `docs/ai-agent/rag/output/`). Ini bertindak sebagai mekanisme "CacheLock" atau penyimpanan statis untuk struktur arsitektur:
+Output *cache* pengetahuan disimpan di direktori output (default: `docs/ai-agent/contexta/output/`). Ini bertindak sebagai mekanisme "CacheLock" atau penyimpanan statis untuk struktur arsitektur:
 
 - **Nodes (`graph.json`):** Entitas seperti `Table`, `Model`, `Controller`, `Service`, `Route`, `Policy`, `FilamentResource`.
 - **Edges (`graph.json`):** Relasi seperti `has_column`, `uses_model`, `depends_on`, `handled_by`, `creates_table`, `authorizes`, `seeds`.

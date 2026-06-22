@@ -57,7 +57,7 @@ async function main() {
   }
 
   if (command === "sync") {
-    console.log("  Command 'sync' is deprecated. RAG now reads directly from the docs without copying.");
+    console.log("  Command 'sync' is deprecated. Contexta now reads directly from the docs without copying.");
   } else if (command === "ingest" || command === "scan" || command === "rebuild" || command === "refresh") {
     if (command === "ingest" || command === "rebuild" || command === "refresh") {
       await runIngest();
@@ -71,15 +71,15 @@ async function main() {
     if (!parsedArgs.intent) {
       console.log("Error: --intent is required for query/search.");
       console.log("Examples:");
-      console.log("  rag query --intent project_overview");
-      console.log("  rag query --intent service_lookup --entity LaporanImut --key migrate");
+      console.log("  contexta query --intent project_overview");
+      console.log("  contexta query --intent service_lookup --entity LaporanImut --key migrate");
       process.exit(1);
     }
     
     const validIntents = [
       "project_overview", "architecture_analysis", "service_lookup", 
       "data_model_lookup", "command_lookup", "api_reference", 
-      "troubleshooting", "rag_usage", "docs_lookup"
+      "troubleshooting", "contexta_usage", "docs_lookup"
     ];
     if (!validIntents.includes(parsedArgs.intent)) {
       console.log(`Error: Invalid intent '${parsedArgs.intent}'.\nValid intents: ${validIntents.join(", ")}`);
@@ -160,7 +160,7 @@ async function main() {
     try {
       const graph = JSON.parse(fs.readFileSync(GRAPH_PATH, "utf-8"));
       if (!arg) {
-        console.log("Error: Provide a node_id for impact analysis. E.g. rag-project impact model-user");
+        console.log("Error: Provide a node_id for impact analysis. E.g. contexta impact model-user");
         return;
       }
       const impacts = getImpact(graph, arg, parsedArgs.depth);

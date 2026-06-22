@@ -7,12 +7,12 @@ export function writeMetadata() {
 
 export function checkFreshness() {
   if (!fs.existsSync(METADATA_PATH)) {
-    console.log("No metadata.json. Rebuild RAG.");
+    console.log("No metadata.json. Rebuild Contexta.");
   } else {
     try {
       const data = JSON.parse(fs.readFileSync(METADATA_PATH, 'utf-8'));
       const date = new Date((data.last_updated || 0) * 1000);
-      console.log(`RAG was last updated: ${date.toString()}`);
+      console.log(`Contexta was last updated: ${date.toString()}`);
     } catch (e) {
       console.log("Error reading metadata.json.");
     }

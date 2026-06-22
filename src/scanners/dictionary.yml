@@ -5,7 +5,7 @@ priority:
   - data_model_lookup
   - api_reference
   - architecture_analysis
-  - rag_usage
+  - contexta_usage
   - project_overview
   - docs_lookup
 
@@ -183,10 +183,10 @@ intents:
     avoid_sources:
       - "database/migrations/"
 
-  rag_usage:
-    phrases:
-      - "rag"
-      - "graphrag"
+  contexta_usage:
+    keywords:
+      - "contexta"
+      - "graph_contexta"
       - "knowledge graph"
       - "knowledge base"
       - "librarian"
@@ -198,10 +198,10 @@ intents:
       - "context pack"
     route: "ai_agent"
     preferred_sources:
-      - "RAG_GUIDE.md"
-      - "README.md"
-      - "docs/releases/"
-      - "rag-project/"
+      - "CONTEXTA_GUIDE.md"
+      - "cli/"
+      - "contexta/"
+      - "contexta-project/"
     avoid_sources:
       - "app/Services/"
       - "database/migrations/"

@@ -207,7 +207,7 @@ function extractEdges(filename: string, content: string, nodes: Record<string, N
     const safeDec = match[1].toLowerCase();
     if (lower.includes("modular") || lower.includes("arsitektur")) addEdge(edges, safeDec, "siimut", "affects", filename, nodes);
     if (lower.includes("query") || lower.includes("performa")) addEdge(edges, safeDec, "daily-report", "affects", filename, nodes);
-    if (lower.includes("dokumentasi") || lower.includes("graphrag")) addEdge(edges, safeDec, "siimut", "affects", filename, nodes);
+    if (lower.includes("dokumentasi") || lower.includes("graph_contexta")) addEdge(edges, safeDec, "siimut", "affects", filename, nodes);
   }
 
   if (/##\s+added|##\s+changed|##\s+fixed/.test(content)) {
