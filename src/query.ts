@@ -347,6 +347,33 @@ export function runQuery(intent: string, subject: string, entities: string[], ke
     relevant_docs, relevant_topics, context_pack
   };
 
+  if (subject && chunks && chunks.length > 0) {
+    const snippets = [];
+    const lowerSubject = subject.toLowerCase();
+    for (const c of chunks) {
+      if (c.content && c.content.toLowerCase().includes(lowerSubject)) {
+        const lines = c.content.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].toLowerCase().includes(lowerSubject)) {
+            snippets.push({
+              file: c.source_file,
+              line: i + 1,
+              code: lines[i].trim()
+            });
+            if (snippets.length >= 5) break;
+          }
+        }
+      }
+      if (snippets.length >= 5) break;
+    }
+    if (snippets.length > 0) {
+      final_data.snippets = snippets;
+      if (!context_pack.includes("Snippets:")) {
+        final_data.context_pack += " | Snippets: " + snippets.map(s => `${s.file}:${s.line} -> ${s.code}`).join(" ; ");
+      }
+    }
+  }
+
   if (mode === "handoff") {
     final_data.read_first = mapping.read_first;
     final_data.read_if_needed = mapping.read_if_needed;
@@ -357,7 +384,7 @@ export function runQuery(intent: string, subject: string, entities: string[], ke
     const prompt = 
       `Anda adalah AI Agent pembaca kode. Anda diberikan metadata arsitektur proyek ini.\n` +
       `Gunakan peta struktur ini untuk memahami konteks arsitektural sebelum membaca file mentah.\n\n` +
-      `=== KONTEKS ===\n${context_pack}\n\n` +
+      `=== KONTEKS ===\n${final_data.context_pack}\n\n` +
       `=== TOPIK & RELASI ===\n` + relevant_topics.map(t => `- ${t}`).join("\n") + `\n\n` +
       `=== REKOMENDASI FILE UNTUK DIBACA ===\n` + relevant_docs.map(d => `- ${d}`).join("\n") + `\n`;
     console.log(prompt);

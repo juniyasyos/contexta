@@ -211,10 +211,49 @@ async function main() {
         const grepInfo = parsedArgs.grep ? ` (Filtered by keyword: "${parsedArgs.grep}")` : "";
         console.log(`=== IMPACT ANALYSIS FOR '${arg}' (Depth ${parsedArgs.depth})${grepInfo} ===`);
         if (!impacts || impacts.length === 0) console.log("No impacted nodes found.");
+        
+        const isVerbose = rawArgs.includes("--verbose") || rawArgs.includes("--snippet") || rawArgs.includes("--line");
+        
         for (const imp of impacts) {
            const prefix = "  ".repeat(imp.depth);
            const arrow = imp.dir === "impacted_by" ? "<--" : "-->";
            console.log(`${prefix} [${imp.depth}] ${imp.from} ${arrow} [${imp.type}] ${arrow} ${imp.to}`);
+           
+           if (isVerbose) {
+             const targetNode = graph.nodes[imp.to];
+             if (targetNode && (targetNode.path || (targetNode.discovered_from && targetNode.discovered_from.length > 0))) {
+               const filesToCheck: string[] = [];
+               if (targetNode.path) filesToCheck.push(targetNode.path);
+               if (targetNode.discovered_from) filesToCheck.push(...targetNode.discovered_from);
+               
+               let searchStr = targetId.split("-").pop() || targetId;
+               // Simple heuristic to extract class name if target is model-laporaninsiden -> LaporanInsiden
+               const nodeLabel = graph.nodes[targetId] ? graph.nodes[targetId].label : null;
+               if (nodeLabel) {
+                 searchStr = nodeLabel;
+               }
+
+               for (const file of Array.from(new Set(filesToCheck))) {
+                 const fullPath = path.join(process.cwd(), file);
+                 try {
+                   if (fs.existsSync(fullPath)) {
+                     const lines = fs.readFileSync(fullPath, "utf-8").split("\n");
+                     let foundSnippets = 0;
+                     for (let i = 0; i < lines.length; i++) {
+                       if (lines[i].toLowerCase().includes(searchStr.toLowerCase())) {
+                         console.log(`${prefix}   -> ${file}:${i + 1} | ${lines[i].trim()}`);
+                         foundSnippets++;
+                         if (foundSnippets >= 3) {
+                           console.log(`${prefix}   -> ... (more matches)`);
+                           break;
+                         }
+                       }
+                     }
+                   }
+                 } catch(e) {}
+               }
+             }
+           }
         }
       }
     } catch (e) {
@@ -237,6 +276,48 @@ async function main() {
       console.log(generateMermaid(graph, targetId));
     } catch (e) {
       console.log("Graph not found. Run scan first.");
+    }
+  } else if (command === "diff") {
+    try {
+      const execSync = require("child_process").execSync;
+      const crypto = require("crypto");
+      console.log("Checking for file changes since last scan...");
+      
+      const graph = JSON.parse(fs.readFileSync(GRAPH_PATH, "utf-8"));
+      const changedFiles = [];
+      const nodesArr = Object.values(graph.nodes || {});
+      
+      for (const n of nodesArr as any[]) {
+        if (n.path && n.source_hash) {
+          const fullPath = path.join(process.cwd(), n.path);
+          if (fs.existsSync(fullPath)) {
+            const content = fs.readFileSync(fullPath, "utf-8");
+            let cleanContent = content;
+            if (n.path.match(/\\.(php|js|vue|ts)$/i)) {
+              cleanContent = cleanContent.replace(/\\/\\*[\\s\\S]*?\\*\\//g, '');
+              cleanContent = cleanContent.replace(/\\/\\/.*$/gm, '');
+            }
+            const hash = crypto.createHash("sha256").update(cleanContent, "utf8").digest("hex");
+            if (hash !== n.source_hash) {
+              changedFiles.push(n.path);
+            }
+          } else {
+             changedFiles.push(n.path + " (deleted)");
+          }
+        }
+      }
+      
+      if (changedFiles.length === 0) {
+        console.log("No files have changed since the last scan.");
+      } else {
+        console.log(`Found ${changedFiles.length} changed files since last scan:`);
+        for (const file of Array.from(new Set(changedFiles))) {
+          console.log(`  - ${file}`);
+        }
+        console.log("\\nRun 'contexta scan' to update the knowledge graph.");
+      }
+    } catch (e) {
+      console.log("Could not perform diff. Make sure you have run 'contexta scan' first.");
     }
   } else if (command === "check") {
     checkFreshness();

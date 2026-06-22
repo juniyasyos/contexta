@@ -2,7 +2,7 @@
 
 Halaman ini mendemonstrasikan bagaimana Contexta memproses *query* menggunakan pendekatan pencarian ketat berorientasi *identifier* (*Strict Identifier Search*) dan sistem *Semantic Chunking*.
 
-Eksperimen ini dijalankan pada proyek **siimut** (sebuah monolit Laravel). Setelah menjalankan perintah `bun run contexta scan`, Contexta memetakan **1766 file**, menemukan **1501 entitas (nodes)**, dan **1756 relasi (edges)**.
+Eksperimen ini dijalankan pada proyek **Sistem E-Commerce** (sebuah monolit Laravel). Setelah menjalankan perintah `bun run contexta scan`, Contexta memetakan **1766 file**, menemukan **1501 entitas (nodes)**, dan **1756 relasi (edges)**.
 
 ## 1. Strict Keyword Identifier Query
 
@@ -28,23 +28,23 @@ bun run contexta query --intent data_model_lookup --subject "\\App\\Models\\User
   "relevant_docs": [],
   "relevant_topics": [
     "\\App\\Models\\User",
-    "\\App\\Models\\LaporanUnitKerja",
-    "\\App\\Http\\Controllers\\CategoryReportController",
-    "\\App\\Http\\Controllers\\CategoryReportPdfController",
-    "folder_has_models",
-    "database/migrations/2024_10_03_171809_create_folder_has_models_table.php --[creates_table]--> folder_has_models",
-    "GET kategori --[handled_by]--> \\App\\Http\\Controllers\\CategoryReportController",
-    "GET kategori/pdf --[handled_by]--> \\App\\Http\\Controllers\\CategoryReportPdfController",
-    "UnitKerja --[hasmany]--> \\App\\Models\\LaporanUnitKerja",
-    "FormTemplate --[belongsto]--> \\App\\Models\\User"
+    "\\App\\Models\\Invoice",
+    "\\App\\Http\\Controllers\\InvoiceController",
+    "\\App\\Http\\Controllers\\InvoicePdfController",
+    "order_has_items",
+    "database/migrations/2024_10_03_171809_create_order_has_items_table.php --[creates_table]--> order_has_items",
+    "GET invoice --[handled_by]--> \\App\\Http\\Controllers\\InvoiceController",
+    "GET invoice/pdf --[handled_by]--> \\App\\Http\\Controllers\\InvoicePdfController",
+    "Customer --[hasmany]--> \\App\\Models\\Invoice",
+    "Role --[belongsto]--> \\App\\Models\\User"
   ],
-  "context_pack": "Nodes/Relations: \\App\\Models\\User | \\App\\Models\\LaporanUnitKerja | \\App\\Http\\Controllers\\CategoryReportController | \\App\\Http\\Controllers\\CategoryReportPdfController | folder_has_models | database/migrations/2024_10_03_171809_create_folder_has_models_table.php --[creates_table]--> folder_has_models | GET kategori --[handled_by]--> \\App\\Http\\Controllers\\CategoryReportController | GET kategori/pdf --[handled_by]--> \\App\\Http\\Controllers\\CategoryReportPdfController | UnitKerja --[hasmany]--> \\App\\Models\\LaporanUnitKerja | FormTemplate --[belongsto]--> \\App\\Models\\User"
+  "context_pack": "Nodes/Relations: \\App\\Models\\User | \\App\\Models\\Invoice | \\App\\Http\\Controllers\\InvoiceController | \\App\\Http\\Controllers\\InvoicePdfController | order_has_items | database/migrations/2024_10_03_171809_create_order_has_items_table.php --[creates_table]--> order_has_items | GET invoice --[handled_by]--> \\App\\Http\\Controllers\\InvoiceController | GET invoice/pdf --[handled_by]--> \\App\\Http\\Controllers\\InvoicePdfController | Customer --[hasmany]--> \\App\\Models\\Invoice | Role --[belongsto]--> \\App\\Models\\User"
 }
 ```
 
 **Penjelasan Sistem:**
 - Karena menggunakan *identifier* spesifik (`\App\Models\User`), mesin pencari langsung tepat sasaran ke objek arsitektur utama tersebut tanpa risiko *false-positive*.
-- `relevant_topics` sukses mengekstrak semua relasi struktural yang terikat pada *identifier* tersebut. Misalnya `FormTemplate --[belongsto]--> \App\Models\User`.
+- `relevant_topics` sukses mengekstrak semua relasi struktural yang terikat pada *identifier* tersebut. Misalnya `Role --[belongsto]--> \App\Models\User`.
 - AI agent kemudian dapat membaca output JSON ini untuk memberikan analisis tingkat tinggi kepada pengguna berdasarkan data arsitektur yang pasti.
 
 ---
@@ -66,24 +66,24 @@ Oleh karena itu, Contexta dilengkapi fitur **Hybrid Search (Macro Graph + Micro 
 
 **Perintah Hybrid Search:**
 ```bash
-# Skenario: Anda mengubah fungsi `hasUnitKerjaCached()` di model User.
+# Skenario: Anda mengubah fungsi `hasActiveSubscription()` di model User.
 # Siapa saja yang terdampak?
-bun run contexta impact "model-user" --grep "hasUnitKerjaCached"
+bun run contexta impact "model-user" --grep "hasActiveSubscription"
 ```
 
 **Output:**
 ```text
-=== IMPACT ANALYSIS FOR 'model-user' (Depth 3) (Filtered by keyword: "hasUnitKerjaCached") ===
-   [1] model-user <-- [belongsto] <-- model-laporanimut
-   [1] model-user <-- [belongstomany] <-- model-unitkerja
-     [2] model-laporanimut <-- [uses_model] <-- filament-widget-recommendationanalysisunitkerjawidget
-     [2] model-laporanimut <-- [uses_model] <-- filament-widget-laporanunitwidget
-     [2] model-dailyreportresponse <-- [manages_model] <-- filament-resource-dailyreportentryresource
+=== IMPACT ANALYSIS FOR 'model-user' (Depth 3) (Filtered by keyword: "hasActiveSubscription") ===
+   [1] model-user <-- [belongsto] <-- model-invoice
+   [1] model-user <-- [belongstomany] <-- model-customer
+     [2] model-invoice <-- [uses_model] <-- filament-widget-salesanalysiswidget
+     [2] model-invoice <-- [uses_model] <-- filament-widget-recentinvoiceswidget
+     [2] model-payment <-- [manages_model] <-- filament-resource-paymentresource
 ```
 
 **Penjelasan Sistem Hybrid:**
 - Secara otomatis Contexta mengumpulkan semua file yang bergantung pada `model-user` (bisa ratusan file).
-- Lalu, Contexta mengeksekusi pemindaian *teks internal (grep)* HANYA di dalam sekumpulan file tersebut untuk mencari eksistensi kata `"hasUnitKerjaCached"`.
+- Lalu, Contexta mengeksekusi pemindaian *teks internal (grep)* HANYA di dalam sekumpulan file tersebut untuk mencari eksistensi kata `"hasActiveSubscription"`.
 - Contexta hanya menampilkan jalur dependensi (*edges*) ke file-file yang secara pasti memanggil fungsi tersebut, mengerucutkan ratusan baris menjadi hanya belasan baris paling relevan.
 - Sangat direkomendasikan bagi AI Agent yang ingin melakukan perombakan level fungsi (*micro refactoring*)!
 

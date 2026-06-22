@@ -41,11 +41,11 @@ bun install
 2. **Build Knowledge Graph (Scan Kode & Ingest Docs):**
 ```bash
 # 1. Melakukan scanning arsitektur kode (menghasilkan graph.json)
-bun run index.ts scan
+bun run contexta scan
 
 # 2. Melakukan chunking dokumentasi Markdown (menghasilkan chunks.json)
 # Pastikan Anda sudah meletakkan file .md (misal README.md) ke dalam folder docs/ai-agent/contexta/input/
-bun run index.ts ingest
+bun run contexta ingest
 ```
 
 ## ⚙️ Konfigurasi (Custom Config)
@@ -96,32 +96,38 @@ Tool ini berjalan dari *root* direktori proyek target.
 ### 1. Eksplorasi Arsitektur (Graph)
 ```bash
 # Menampilkan statistik jumlah node/edge di proyek
-bun run index.ts graph stats
+bun run contexta graph stats
 
 # Mencari node berdasarkan keyword (contoh: "user")
-bun run index.ts graph "user"
+bun run contexta graph "user"
 
 # Melihat KESELURUHAN relasi (inbound & outbound) dari satu entitas
-bun run index.ts inspect "model-user"
+bun run contexta inspect "model-user"
+
+# Melacak perubahan file yang belum di-scan (Integrasi CI/CD)
+bun run contexta diff
 
 # Deep Impact Analysis (Efek Domino N-Hop)
 # Melacak siapa saja yang terdampak jika suatu file diubah (misal kedalaman 3 tingkat)
-bun run index.ts impact "model-user" --depth 3
+bun run contexta impact "model-user" --depth 3
+
+# Menampilkan cuplikan baris kode spesifik tempat target dipanggil
+bun run contexta impact "model-user" --depth 3 --snippet
 
 # [BARU] Hybrid Search (Macro Graph + Micro Grep)
 # Sangat direkomendasikan untuk AI Agent: Menyaring impact tree hanya pada file yang memanggil nama fungsi spesifik
-bun run index.ts impact "model-user" --depth 3 --grep "hasUnitKerjaCached"
+bun run contexta impact "model-user" --depth 3 --grep "hasActiveSubscription"
 
 # Visualisasi Arsitektur (Mermaid.js)
 # Men-generate kode diagram Mermaid TD untuk dirender secara visual (Markdown/GitHub)
-bun run index.ts visualize "controller-usercontroller"
+bun run contexta visualize "controller-usercontroller"
 ```
 
 ### 2. Keyword & Intent-Based Querying
 ```bash
-# Mendapatkan konteks terstruktur untuk AI Agent (menggunakan intent routing & identifier)
+# Mendapatkan konteks terstruktur beserta cuplikan kode (*snippets*) untuk AI Agent
 # CATATAN: Gunakan strict identifier, bukan kalimat natural.
-bun run index.ts query --intent architecture_analysis --subject "\\App\\Models\\User"
+bun run contexta query --intent architecture_analysis --subject "\\App\\Models\\User"
 
 # Intent yang tersedia:
 # project_overview, architecture_analysis, service_lookup, data_model_lookup,
@@ -131,7 +137,7 @@ bun run index.ts query --intent architecture_analysis --subject "\\App\\Models\\
 ### 3. Pencarian Raw
 ```bash
 # Mencari string spesifik dalam output Contexta
-bun run index.ts search --intent docs_lookup --subject "authentication"
+bun run contexta search --intent docs_lookup --subject "authentication"
 ```
 
 ## 📁 Struktur Data Graph (Cache & Lock)

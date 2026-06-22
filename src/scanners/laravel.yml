@@ -110,7 +110,7 @@ domains:
     paths: ["routes"]
     rules:
       # --- Standard route: Route::get/post/put/patch/delete ---
-      - pattern: "Route::(get|post|put|patch|delete)\\('([^']+)'\\s*,\\s*\\[([^:]+)::class,\\s*'([^']+)'\\]"
+      - pattern: "(?i)Route::(get|post|put|patch|delete)\\('([^']+)'\\s*,\\s*\\[([^:]+)::class,\\s*'([^']+)'\\]"
         entities:
           - id: "route-{1_lower}-{2_slug}"
             type: "Route"
@@ -125,8 +125,16 @@ domains:
             to: "controller-{3_lower}"
             type: "handled_by"
 
+      # --- Route with string or closure (generic) ---
+      - pattern: "(?i)Route::(get|post|put|patch|delete)\\('([^']+)'\\s*,\\s*(?:function|'([^']+)')"
+        entities:
+          - id: "route-{1_lower}-{2_slug}"
+            type: "Route"
+            label: "{1_upper} {2}"
+            domain: "{domain}"
+
       # --- Route::resource ---
-      - pattern: "Route::resource\\('([^']+)'\\s*,\\s*([^:]+)::class"
+      - pattern: "(?i)Route::resource\\('([^']+)'\\s*,\\s*([^:]+)::class"
         entities:
           - id: "route-resource-{1_slug}"
             type: "Route"
@@ -142,7 +150,7 @@ domains:
             type: "handled_by"
 
       # --- Route::apiResource ---
-      - pattern: "Route::apiResource\\('([^']+)'\\s*,\\s*([^:]+)::class"
+      - pattern: "(?i)Route::apiResource\\('([^']+)'\\s*,\\s*([^:]+)::class"
         entities:
           - id: "route-apiresource-{1_slug}"
             type: "Route"
@@ -960,6 +968,30 @@ domains:
               - from: "filament-importer-{parent_1_lower}"
                 to: "model-{1_lower}"
                 type: "imports_model"
+
+      # --- Filament Actions ---
+      - pattern: "(?i)(?:Action|EditAction|ViewAction|DeleteAction|CreateAction)::make\\('([^']+)'\\)"
+        entities:
+          - id: "filament-action-{1_slug}"
+            type: "FilamentAction"
+            label: "Action {1}"
+            domain: "{domain}"
+        relations:
+          - from: "{file_id}"
+            to: "filament-action-{1_slug}"
+            type: "has_action"
+
+      # --- Filament Notifications ---
+      - pattern: "(?i)Notification::make\\(\\)"
+        entities:
+          - id: "filament-notification"
+            type: "FilamentNotification"
+            label: "Notification"
+            domain: "{domain}"
+        relations:
+          - from: "{file_id}"
+            to: "filament-notification"
+            type: "sends_notification"
 
   # ===========================================================================
   # LIVEWIRE — Components
