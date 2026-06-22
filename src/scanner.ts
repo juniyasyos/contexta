@@ -3,7 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { execSync } from 'child_process';
 import * as yaml from 'js-yaml';
-import { PROJECT_ROOT, CHUNKS_PATH, GRAPH_PATH } from './paths';
+import { PROJECT_ROOT, CHUNKS_PATH, GRAPH_PATH, configData } from './paths';
 
 function addNode(nodes: Record<string, any>, nodeId: string, nodeType: string, label: string, source: string, domain: string, metadata: any = null, isPrimary: boolean = false) {
   const cleanId = nodeId.toLowerCase().trim();
@@ -247,7 +247,7 @@ export function runScan() {
 
   const scannersDir = path.join(__dirname, "scanners");
   const configs: any[] = [];
-  const scannerName = process.env.CONTEXTA_SCANNER || "laravel";
+  const scannerName = process.env.CONTEXTA_SCANNER || configData.scanner || "laravel";
   const scannerFile = path.join(scannersDir, `${scannerName}.yml`);
 
   if (fs.existsSync(scannerFile)) {

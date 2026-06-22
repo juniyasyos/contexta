@@ -40,6 +40,25 @@ bun run index.ts ingest
 bun run index.ts scan
 ```
 
+## ⚙️ Konfigurasi (Custom Config)
+
+Secara bawaan (default), Contexta memindai untuk arsitektur **Laravel** dan menyimpan hasil pemindaian di folder `docs/ai-agent/contexta/output/`. Kamu dapat menyesuaikan tipe project (scanner) maupun lokasi output ini melalui file konfigurasi.
+
+Buat sebuah file bernama **`contexta.config.json`** (atau `contexta.json`) di *root* direktori proyekmu (sejajar dengan `package.json`):
+
+```json
+{
+  "scanner": "laravel",
+  "output_dir": "storage/app/contexta/output",
+  "graph_file": "storage/app/contexta/output/graph.json",
+  "chunks_file": "storage/app/contexta/output/chunks.json",
+  "metadata_file": "storage/app/contexta/output/metadata.json"
+}
+```
+
+* Nilai `scanner` menentukan file *rules* mana di folder `src/scanners/` yang akan digunakan untuk membedah *source code* proyek (contoh: `laravel` -> `src/scanners/laravel.yml`).
+* Kamu juga bebas menentukan di mana lokasi penyimpanan cache graf arsitektur (`output_dir`, dsb) melalui file ini.
+
 ## 📁 Struktur Direktori
 
 ```text

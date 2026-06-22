@@ -4,3 +4,4 @@ output_dir: docs/ai-agent/contexta/output
 graph_file: docs/ai-agent/contexta/output/graph.json
 chunks_file: docs/ai-agent/contexta/output/chunks.json
 metadata_file: docs/ai-agent/contexta/output/metadata.json
+scanner: laravel

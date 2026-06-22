@@ -13,9 +13,29 @@ export const defaultConfig = {
   graph_file: "docs/ai-agent/contexta/output/graph.json",
   chunks_file: "docs/ai-agent/contexta/output/chunks.json",
   metadata_file: "docs/ai-agent/contexta/output/metadata.json",
+  scanner: "laravel",
 };
 
 export function loadOrCreateConfig(): Record<string, any> {
+  const rootConfigJson = path.join(PROJECT_ROOT, "contexta.config.json");
+  const rootConfigJsonShort = path.join(PROJECT_ROOT, "contexta.json");
+
+  // Prioritaskan file config di root seperti ekosistem Node/Vite
+  if (fs.existsSync(rootConfigJson)) {
+    try {
+      return { ...defaultConfig, ...JSON.parse(fs.readFileSync(rootConfigJson, "utf-8")) };
+    } catch (e) {
+      console.error("Error loading contexta.config.json:", e);
+    }
+  } else if (fs.existsSync(rootConfigJsonShort)) {
+    try {
+      return { ...defaultConfig, ...JSON.parse(fs.readFileSync(rootConfigJsonShort, "utf-8")) };
+    } catch (e) {
+      console.error("Error loading contexta.json:", e);
+    }
+  }
+
+  // Fallback ke legacy yaml
   if (!fs.existsSync(CONFIG_FILE)) {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
     fs.writeFileSync(CONFIG_FILE, yaml.dump(defaultConfig), "utf-8");
@@ -23,7 +43,7 @@ export function loadOrCreateConfig(): Record<string, any> {
   } else {
     try {
       const fileContents = fs.readFileSync(CONFIG_FILE, "utf-8");
-      return yaml.load(fileContents) as Record<string, any>;
+      return { ...defaultConfig, ...(yaml.load(fileContents) as Record<string, any>) };
     } catch (e) {
       console.error("Error loading config:", e);
       return defaultConfig;
